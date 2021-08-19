@@ -4,7 +4,7 @@ from .serializers import *
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from rest_framework.views import APIView
+from rest_framework import status
 # Create your views here.
 
 
@@ -27,6 +27,31 @@ def find_flights(request):
     return Response(serializer.data)
 
 
+@api_view(['POST'])
+def save_reservation(request):
+    flight = Flight.objects.get(id=request.data['flightId'])
+
+    passenger = Passenger()
+
+    passenger.firstName = request.data['firstName']
+    passenger.middleName = request.data['middleName'] if 'middleName' in request.data else None
+    passenger.lastName = request.data['lastName']
+    passenger.email = request.data['email']
+    passenger.phone = request.data['phone']
+
+    passenger.save()
+
+    reservation = Reservation()
+    reservation.flight = flight
+    reservation.passenger = passenger
+
+    reservation.save()
+
+    serializer = ReservationSerializer(reservation)
+
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.all()
     serializer_class = FlightSerializer
@@ -40,3 +65,18 @@ class PassengerViewSet(viewsets.ModelViewSet):
 class ReservationViewSet(viewsets.ModelViewSet):
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
+
+
+@api_view(['GET'])
+def get_passengers(request, flightId):
+    flight = Flight.objects.filter(id=flightId).first()
+
+    reservations = Reservation.objects.filter(flight=flight)
+    passenger_ids = []
+    for res in reservations:
+        passenger_ids.append(res.passenger.id)
+
+    passengers = Passenger.objects.filter(id__in=passenger_ids)
+
+    serializer = PassengerSerializer(passengers, many=True)
+    return Response(serializer.data)
